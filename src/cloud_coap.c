@@ -17,7 +17,7 @@ int cloud_init()
     }
 
 #if !CLOSE_CONNECTION
-    err = nrf_cloud_coap_connect();
+    err = nrf_cloud_coap_connect(NULL);
     if (err) {
         printk("nRF Cloud CoAP connect failed: %d\n", err);
         return err; 
@@ -39,7 +39,7 @@ int cloud_send(uint8_t *buf, size_t len)
     }
 #endif
 
-    err = nrf_cloud_coap_message_send(APP_ID, MESSAGE, false, 1693858789426);
+    err = nrf_cloud_coap_message_send(APP_ID, MESSAGE, false, 1693858789426, false);
     if (err) {
         printk("Failed to send message: %d\n", err);
         return err;

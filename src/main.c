@@ -4,6 +4,7 @@
 #include <modem/modem_key_mgmt.h>
 #include <net/nrf_provisioning.h>
 #include <zephyr/sys/reboot.h>
+#include <cJSON.h>
 
 #include "nrf_provisioning_at.h"
 
@@ -13,6 +14,7 @@
 #define SEND_PERIOD K_MINUTES(INTERVAL)
 
 K_SEM_DEFINE(lte_connected, 0, 1);
+K_SEM_DEFINE(provisioning_complete, 0, 1);
 
 static struct nrf_provisioning_dm_change dmode;
 static struct nrf_provisioning_mm_change mmode;
@@ -104,8 +106,6 @@ static void reboot_device(void)
 		printk("Unable to set modem offline, error %d\n", ret);
 	}
 
-	//k_sleep(K_MINUTES(1));
-
 	sys_reboot(SYS_REBOOT_WARM);
 }
 
@@ -119,6 +119,7 @@ static void device_mode_cb(enum nrf_provisioning_event event, void *user_data)
 		break;
 	case NRF_PROVISIONING_EVENT_STOP:
 		printk("Provisioning stopped\n");
+		k_sem_give(&provisioning_complete);
 		break;
 	case NRF_PROVISIONING_EVENT_DONE:
 		printk("Provisioning done, rebooting...\n");
@@ -135,13 +136,12 @@ int main(void)
     int err;
 
     mmode.cb = modem_mode_cb;
-	mmode.user_data = NULL;
-	dmode.cb = device_mode_cb;
-	dmode.user_data = NULL;
+		mmode.user_data = NULL;
+		dmode.cb = device_mode_cb;
+		dmode.user_data = NULL;
 
-    printk("nRF Cloud CoAP and MQTT comparison started\n");
-    printk("Current mode: %s\n", MODE);
-    printk("Message interval: %d minutes\n", INTERVAL);
+    printk("nRF Cloud CoAP display demo started\n");
+    printk("Polling interval: %d minutes\n", INTERVAL);
 
     err = nrf_modem_lib_init();
     if (err) {
@@ -157,26 +157,14 @@ int main(void)
 
     k_sem_take(&lte_connected, K_FOREVER);
 
-	err = nrf_provisioning_init(&mmode, &dmode);
-	if (err) {
-		printk("Failed to initialize provisioning client\n");
-	}
+		err = nrf_provisioning_init(&mmode, &dmode);
+		if (err) {
+			printk("Failed to initialize provisioning client\n");
+		}
 
-    err = cloud_init();
-    if (err) {
-        printk("Failed to init cloud module: %d\n", err);
-        return 1;
-    }
+		k_sem_take(&provisioning_complete, K_FOREVER);
+		printk("Provisioning complete\n");
 
-    while (1) {
-        printk("Sending message\n");
-        err = cloud_send((uint8_t *)MESSAGE, sizeof(MESSAGE));
-        if (err) {
-            printk("Failed to send message: %d\n", err);
-            return 1;
-        }
-        k_sleep(SEND_PERIOD);
-    }
-
+		cloud_thread();
     return 0;
 }

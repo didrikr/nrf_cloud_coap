@@ -1,4 +1,5 @@
 #include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 #include <modem/nrf_modem_lib.h>
 #include <modem/lte_lc.h>
 #include <modem/modem_key_mgmt.h>
@@ -10,8 +11,8 @@
 
 #include "cloud.h"
 
-#define INTERVAL 2
-#define SEND_PERIOD K_MINUTES(INTERVAL)
+LOG_MODULE_REGISTER(main, CONFIG_CLOUD_DISPLAY_LOG_LEVEL); 
+
 
 K_SEM_DEFINE(lte_connected, 0, 1);
 K_SEM_DEFINE(provisioning_complete, 0, 1);
@@ -28,22 +29,22 @@ static void lte_handler(const struct lte_lc_evt *const evt)
 			break;
 		}
 
-		printk("Network registration status: %s\n",
+		LOG_INF("Network registration status: %s",
 		       evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME ?
 		       "Connected - home network" : "Connected - roaming");
 		k_sem_give(&lte_connected);
 		break;
 	case LTE_LC_EVT_RRC_UPDATE:
-		printk("RRC mode: %s\n",
+		LOG_INF("RRC mode: %s",
 		       evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED ?
 		       "Connected" : "Idle");
 		break;
 	case LTE_LC_EVT_CELL_UPDATE:
-		printk("LTE cell changed: Cell ID: %d, Tracking area: %d\n",
+		LOG_INF("LTE cell changed: Cell ID: %d, Tracking area: %d\n",
 		       evt->cell.id, evt->cell.tac);
 		break;
 	case LTE_LC_EVT_MODEM_EVENT:
-		printk("Modem event: %d\n", evt->modem_evt);
+		LOG_INF("Modem event: %d", evt->modem_evt);
 		break;
 	default:
 		break;
@@ -59,7 +60,7 @@ static int modem_mode_cb(enum lte_lc_func_mode new_mode, void *user_data)
 	ARG_UNUSED(user_data);
 
 	if (lte_lc_func_mode_get(&fmode)) {
-		printk("Failed to read modem functional mode\n");
+		LOG_ERR("Failed to read modem functional mode");
 		ret = -EFAULT;
 		return ret;
 	}
@@ -73,23 +74,23 @@ static int modem_mode_cb(enum lte_lc_func_mode new_mode, void *user_data)
 		ret = lte_lc_connect();
 
 		if (ret) {
-			printk("lte_lc_connect() failed %d\n", ret);
+			LOG_ERR("lte_lc_connect() failed %d", ret);
 		}
-		printk("Modem connection restored\n");
+		LOG_INF("Modem connection restored");
 
-		printk("Waiting for modem to acquire network time...\n");
+		LOG_INF("Waiting for modem to acquire network time...");
 
 		do {
 			k_sleep(K_SECONDS(3));
 			ret = nrf_provisioning_at_time_get(time_buf, sizeof(time_buf));
 		} while (ret != 0);
 
-		printk("Network time obtained\n");
+		LOG_INF("Network time obtained");
 		ret = fmode;
 	} else {
 		ret = lte_lc_func_mode_set(new_mode);
 		if (ret == 0) {
-			printk("Modem set to requested state %d\n", new_mode);
+			LOG_INF("Modem set to requested state %d", new_mode);
 			ret = fmode;
 		}
 	}
@@ -103,7 +104,7 @@ static void reboot_device(void)
 	int ret = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE);
 
 	if (ret != 0) {
-		printk("Unable to set modem offline, error %d\n", ret);
+		LOG_ERR("Unable to set modem offline, error %d", ret);
 	}
 
 	sys_reboot(SYS_REBOOT_WARM);
@@ -115,18 +116,18 @@ static void device_mode_cb(enum nrf_provisioning_event event, void *user_data)
 
 	switch (event) {
 	case NRF_PROVISIONING_EVENT_START:
-		printk("Provisioning started\n");
+		LOG_ERR("Provisioning started");
 		break;
 	case NRF_PROVISIONING_EVENT_STOP:
-		printk("Provisioning stopped\n");
+		LOG_ERR("Provisioning stopped");
 		k_sem_give(&provisioning_complete);
 		break;
 	case NRF_PROVISIONING_EVENT_DONE:
-		printk("Provisioning done, rebooting...\n");
+		LOG_ERR("Provisioning done, rebooting...");
 		reboot_device();
 		break;
 	default:
-		printk("Unknown event\n");
+		LOG_ERR("Unknown event");
 		break;
 	}
 }
@@ -140,18 +141,18 @@ int main(void)
 		dmode.cb = device_mode_cb;
 		dmode.user_data = NULL;
 
-    printk("nRF Cloud CoAP display demo started\n");
-    printk("Polling interval: %d minutes\n", INTERVAL);
+    LOG_INF("nRF Cloud CoAP display demo started");
+    LOG_INF("Polling interval: %d minutes", CONFIG_CLOUD_POLL_INTERVAL);
 
     err = nrf_modem_lib_init();
     if (err) {
-        printk("Modem initialization failed: %d\n", err);
+        LOG_ERR("Modem initialization failed: %d", err);
         return 1;
     }
 
     err = lte_lc_connect_async(lte_handler);
     if (err) {
-        printk("Failed to start network connection: %d\n", err);
+        LOG_ERR("Failed to start network connection: %d", err);
         return 1;
     }
 
@@ -159,11 +160,11 @@ int main(void)
 
 		err = nrf_provisioning_init(&mmode, &dmode);
 		if (err) {
-			printk("Failed to initialize provisioning client\n");
+			LOG_ERR("Failed to initialize provisioning client");
 		}
 
 		k_sem_take(&provisioning_complete, K_FOREVER);
-		printk("Provisioning complete\n");
+		LOG_ERR("Provisioning complete");
 
 		cloud_thread();
     return 0;

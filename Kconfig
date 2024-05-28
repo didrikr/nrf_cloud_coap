@@ -1,0 +1,15 @@
+config CLOUD_POLL_INTERVAL
+    int "How often to poll the device shadow, in seconds"
+    default 60
+
+config SHADOW_BUFFER_SIZE
+    int "How big buffer to allocate for the shadow"
+    default 1024
+
+module = CLOUD_DISPLAY
+module-str = Cloud display
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
+menu "Zephyr Kernel"
+source "Kconfig.zephyr"
+endmenu 

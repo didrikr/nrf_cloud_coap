@@ -116,18 +116,18 @@ static void device_mode_cb(enum nrf_provisioning_event event, void *user_data)
 
 	switch (event) {
 	case NRF_PROVISIONING_EVENT_START:
-		LOG_ERR("Provisioning started");
+		LOG_INF("Provisioning started");
 		break;
 	case NRF_PROVISIONING_EVENT_STOP:
-		LOG_ERR("Provisioning stopped");
+		LOG_INF("Provisioning stopped");
 		k_sem_give(&provisioning_complete);
 		break;
 	case NRF_PROVISIONING_EVENT_DONE:
-		LOG_ERR("Provisioning done, rebooting...");
+		LOG_INF("Provisioning done, rebooting...");
 		reboot_device();
 		break;
 	default:
-		LOG_ERR("Unknown event");
+		LOG_WRN("Unknown event");
 		break;
 	}
 }

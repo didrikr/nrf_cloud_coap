@@ -164,7 +164,7 @@ int main(void)
 		}
 
 		k_sem_take(&provisioning_complete, K_FOREVER);
-		LOG_ERR("Provisioning complete");
+		LOG_INF("Provisioning complete");
 
 		cloud_thread();
     return 0;
